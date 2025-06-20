@@ -124,4 +124,5 @@ compile_commands.json
 data
 results
 
+examples/pycolmap/
 !examples/benchmarks/compression/results/

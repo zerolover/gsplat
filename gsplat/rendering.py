@@ -412,6 +412,7 @@ def rasterization(
             depths,
             conics,
             compensations,
+            update_mask,
         ) = proj_results
         opacities = opacities[gaussian_ids]  # [nnz]
     else:
@@ -505,6 +506,9 @@ def rasterization(
                 [means2d, depths, conics, opacities, colors],
                 cnts,
                 output_splits=collected_splits,
+            )
+            (update_mask,) = all_to_all_tensor_list(
+                world_size, [update_mask], cnts, output_splits=collected_splits
             )
 
             # all to all communication in backward pass
@@ -762,6 +766,7 @@ def rasterization(
                 backgrounds=backgrounds,
                 packed=packed,
                 absgrad=absgrad,
+                update_mask=update_mask,
             )
     if render_mode in ["ED", "RGB+ED"]:
         # normalize the accumulated depth to get the expected depth

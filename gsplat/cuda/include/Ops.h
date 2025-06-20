@@ -139,6 +139,7 @@ projection_ewa_3dgs_packed_bwd(
     const at::Tensor gaussian_ids,                // [nnz]
     const at::Tensor conics,                      // [nnz, 3]
     const at::optional<at::Tensor> compensations, // [nnz] optional
+    const at::optional<at::Tensor> update_mask,   // [nnz] optional
     // grad outputs
     const at::Tensor v_means2d,                     // [nnz, 2]
     const at::Tensor v_depths,                      // [nnz]

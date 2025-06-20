@@ -420,6 +420,7 @@ projection_ewa_3dgs_packed_bwd(
     const at::Tensor gaussian_ids,                // [nnz]
     const at::Tensor conics,                      // [nnz, 3]
     const at::optional<at::Tensor> compensations, // [nnz] optional
+    const at::optional<at::Tensor> update_mask,   // [nnz] optional
     // grad outputs
     const at::Tensor v_means2d,                     // [nnz, 2]
     const at::Tensor v_depths,                      // [nnz]
@@ -451,6 +452,9 @@ projection_ewa_3dgs_packed_bwd(
     if (v_compensations.has_value()) {
         CHECK_INPUT(v_compensations.value());
         assert(compensations.has_value());
+    }
+    if (update_mask.has_value()) {
+        CHECK_INPUT(update_mask.value());
     }
 
     uint32_t N = means.size(0);    // number of gaussians
@@ -499,6 +503,7 @@ projection_ewa_3dgs_packed_bwd(
         gaussian_ids,
         conics,
         compensations,
+        update_mask,
         // grad outputs
         v_means2d,
         v_depths,

@@ -493,6 +493,7 @@ def rasterize_to_pixels(
     flatten_ids: Tensor,  # [n_isects]
     backgrounds: Optional[Tensor] = None,  # [C, channels]
     masks: Optional[Tensor] = None,  # [C, tile_height, tile_width]
+    update_mask: Optional[Tensor] = None,  # [C, N] or [nnz]
     packed: bool = False,
     absgrad: bool = False,
 ) -> Tuple[Tensor, Tensor]:
@@ -603,6 +604,7 @@ def rasterize_to_pixels(
         opacities.contiguous(),
         backgrounds,
         masks,
+        update_mask,
         image_width,
         image_height,
         tile_size,
@@ -1129,6 +1131,7 @@ class _RasterizeToPixels(torch.autograd.Function):
         opacities: Tensor,  # [C, N]
         backgrounds: Tensor,  # [C, D], Optional
         masks: Tensor,  # [C, tile_height, tile_width], Optional
+        update_mask: Optional[Tensor],  # [C, N] or [nnz], Optional
         width: int,
         height: int,
         tile_size: int,
@@ -1159,6 +1162,7 @@ class _RasterizeToPixels(torch.autograd.Function):
             opacities,
             backgrounds,
             masks,
+            update_mask,
             isect_offsets,
             flatten_ids,
             render_alphas,
@@ -1186,6 +1190,7 @@ class _RasterizeToPixels(torch.autograd.Function):
             opacities,
             backgrounds,
             masks,
+            update_mask,
             isect_offsets,
             flatten_ids,
             render_alphas,
@@ -1231,12 +1236,20 @@ class _RasterizeToPixels(torch.autograd.Function):
         else:
             v_backgrounds = None
 
+        if update_mask is not None:
+            v_means2d = v_means2d[update_mask, :]
+            v_conics = v_conics[update_mask, :]
+            v_colors = v_colors[update_mask, :]
+            if absgrad:
+                means2d.absgrad = v_means2d_abs[update_mask, :]
+
         return (
             v_means2d,
             v_conics,
             v_colors,
             v_opacities,
             v_backgrounds,
+            None,
             None,
             None,
             None,
@@ -1489,6 +1502,7 @@ class _FullyFusedProjectionPacked(torch.autograd.Function):
         )
         if not calc_compensations:
             compensations = None
+        update_mask = ~((radii[:, 0] < 3.0) & (radii[:, 1] < 3.0) & (depths > 250.0))
         ctx.save_for_backward(
             camera_ids,
             gaussian_ids,
@@ -1500,6 +1514,7 @@ class _FullyFusedProjectionPacked(torch.autograd.Function):
             Ks,
             conics,
             compensations,
+            update_mask,
         )
         ctx.width = width
         ctx.height = height
@@ -1507,7 +1522,16 @@ class _FullyFusedProjectionPacked(torch.autograd.Function):
         ctx.sparse_grad = sparse_grad
         ctx.camera_model_type = camera_model_type
 
-        return camera_ids, gaussian_ids, radii, means2d, depths, conics, compensations
+        return (
+            camera_ids,
+            gaussian_ids,
+            radii,
+            means2d,
+            depths,
+            conics,
+            compensations,
+            update_mask,
+        )
 
     @staticmethod
     def backward(
@@ -1519,6 +1543,7 @@ class _FullyFusedProjectionPacked(torch.autograd.Function):
         v_depths,
         v_conics,
         v_compensations,
+        v_update_mask,
     ):
         (
             camera_ids,
@@ -1531,6 +1556,7 @@ class _FullyFusedProjectionPacked(torch.autograd.Function):
             Ks,
             conics,
             compensations,
+            update_mask,
         ) = ctx.saved_tensors
         width = ctx.width
         height = ctx.height
@@ -1557,6 +1583,7 @@ class _FullyFusedProjectionPacked(torch.autograd.Function):
             gaussian_ids,
             conics,
             compensations,
+            update_mask,
             v_means2d.contiguous(),
             v_depths.contiguous(),
             v_conics.contiguous(),

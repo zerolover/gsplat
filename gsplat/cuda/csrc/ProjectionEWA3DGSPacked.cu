@@ -385,6 +385,7 @@ __global__ void projection_ewa_3dgs_packed_bwd_kernel(
     const int64_t *__restrict__ gaussian_ids,   // [nnz]
     const scalar_t *__restrict__ conics,        // [nnz, 3]
     const scalar_t *__restrict__ compensations, // [nnz] optional
+    const bool *__restrict__ update_mask,       // [nnz] optional
     // grad outputs
     const scalar_t *__restrict__ v_means2d,       // [nnz, 2]
     const scalar_t *__restrict__ v_depths,        // [nnz]
@@ -416,6 +417,11 @@ __global__ void projection_ewa_3dgs_packed_bwd_kernel(
     v_means2d += idx * 2;
     v_depths += idx;
     v_conics += idx * 3;
+
+    bool update_flag = (update_mask == nullptr) ? true : update_mask[idx];
+    if (!update_flag) {
+        return;
+    }
 
     // vjp: compute the inverse of the 2d covariance
     mat2 covar2d_inv = mat2(conics[0], conics[1], conics[1], conics[2]);
@@ -660,6 +666,7 @@ void launch_projection_ewa_3dgs_packed_bwd_kernel(
     const at::Tensor gaussian_ids,                // [nnz]
     const at::Tensor conics,                      // [nnz, 3]
     const at::optional<at::Tensor> compensations, // [nnz] optional
+    const at::optional<at::Tensor> update_mask,   // [nnz] optional
     // grad outputs
     const at::Tensor v_means2d,                     // [nnz, 2]
     const at::Tensor v_depths,                      // [nnz]
@@ -716,6 +723,9 @@ void launch_projection_ewa_3dgs_packed_bwd_kernel(
                     conics.data_ptr<scalar_t>(),
                     compensations.has_value()
                         ? compensations.value().data_ptr<scalar_t>()
+                        : nullptr,
+                    update_mask.has_value()
+                        ? update_mask.value().data_ptr<bool>()
                         : nullptr,
                     v_means2d.data_ptr<scalar_t>(),
                     v_depths.data_ptr<scalar_t>(),
