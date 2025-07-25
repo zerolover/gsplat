@@ -47,6 +47,16 @@ __global__ void projection_ewa_3dgs_fused_fwd_kernel(
     const uint32_t cid = (idx / N) % C; // camera id
     const uint32_t gid = idx % N; // gaussian id
 
+    // early exit if opacity is below threshold
+    if (opacities != nullptr) {
+        float opacity = opacities[bid * N + gid];
+        if (opacity < ALPHA_THRESHOLD) {
+            radii[idx * 2] = 0;
+            radii[idx * 2 + 1] = 0;
+            return;
+        }
+    }
+
     // shift pointers to the current camera and gaussian
     means += bid * N * 3 + gid * 3;
     viewmats += bid * C * 16 + cid * 16;

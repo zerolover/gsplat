@@ -57,6 +57,16 @@ __global__ void projection_ewa_3dgs_packed_fwd_kernel(
 
     bool valid = (bid < B) && (cid < C) && (gid < N);
 
+    // early exit if opacity is below threshold
+    if (valid) {
+        if (opacities != nullptr) {
+            float opacity = opacities[col_idx];
+            if (opacity < ALPHA_THRESHOLD) {
+                valid = false;
+            }
+        }
+    }
+
     // check if points are with camera near and far plane
     vec3 mean_c;
     mat3 R;
